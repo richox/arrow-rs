@@ -19,7 +19,7 @@
 
 use std::sync::Arc;
 
-use arrow_array::builder::BufferBuilder;
+use arrow_array::{builder::BufferBuilder, cast::as_map_array};
 use arrow_array::types::*;
 use arrow_array::*;
 use arrow_buffer::{bit_util, ArrowNativeType, Buffer, MutableBuffer};
@@ -157,6 +157,12 @@ where
                 indices,
                 *length as u32,
             )?))
+        }
+        DataType::Map(_, _) => {
+            let list_arr = ListArray::from(as_map_array(values).clone());
+            let list_data = take_list::<_, Int32Type>(&list_arr, indices)?;
+            let builder = list_data.into_data().into_builder().data_type(values.data_type().clone());
+            Ok(Arc::new(MapArray::from(unsafe { builder.build_unchecked() })))
         }
         DataType::Struct(fields) => {
             let struct_: &StructArray =
@@ -1933,6 +1939,30 @@ mod tests {
         // A panic is expected here since we have not supplied the check_bounds
         // option.
         take(&list_array, &index, None).unwrap();
+    }
+
+    #[test]
+    fn test_take_map() {
+        let values = Int32Array::from(vec![1, 2, 3, 4]);
+        let array = MapArray::new_from_strings(
+            vec!["a", "b", "c", "a"].into_iter(),
+            &values,
+            &[0, 3, 4],
+        )
+        .unwrap();
+
+        let index = UInt32Array::from(vec![0]);
+
+        let result = take(&array, &index, None).unwrap();
+        let expected: ArrayRef = Arc::new(
+            MapArray::new_from_strings(
+                vec!["a", "b", "c"].into_iter(),
+                &values.slice(0, 3),
+                &[0, 3],
+            )
+            .unwrap(),
+        );
+        assert_eq!(&expected, &result);
     }
 
     #[test]

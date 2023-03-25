@@ -16,9 +16,9 @@
 // under the License.
 
 use crate::array::{get_offsets, print_long_array};
-use crate::{make_array, Array, ArrayRef, StringArray, StructArray};
-use arrow_buffer::buffer::OffsetBuffer;
+use crate::{make_array, Array, ArrayRef, ListArray, StringArray, StructArray};
 use arrow_buffer::{ArrowNativeType, Buffer, ToByteSlice};
+use arrow_buffer::buffer::OffsetBuffer;
 use arrow_data::ArrayData;
 use arrow_schema::{ArrowError, DataType, Field};
 use std::any::Any;
@@ -236,6 +236,20 @@ impl std::fmt::Debug for MapArray {
             std::fmt::Debug::fmt(&array.value(index), f)
         })?;
         write!(f, "]")
+    }
+}
+
+impl From<MapArray> for ListArray {
+    fn from(value: MapArray) -> Self {
+        let field = match value.data_type() {
+            DataType::Map(field, _) => field,
+            _ => unreachable!("This should be a map type."),
+        };
+        let data_type = DataType::List(field.clone());
+        let builder = value.into_data().into_builder().data_type(data_type);
+        let array_data = unsafe { builder.build_unchecked() };
+
+        ListArray::from(array_data)
     }
 }
 
