@@ -31,7 +31,7 @@ use crate::file::reader::{FilePageIterator, FileReader};
 use crate::schema::types::SchemaDescPtr;
 
 mod builder;
-mod byte_array;
+pub mod byte_array;
 mod byte_array_dictionary;
 mod empty_array;
 mod fixed_len_byte_array;

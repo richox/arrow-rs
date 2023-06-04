@@ -53,7 +53,7 @@ pub use selection::{RowSelection, RowSelector};
 ///
 /// [`ParquetRecordBatchStreamBuilder`]: crate::arrow::async_reader::ParquetRecordBatchStreamBuilder
 pub struct ArrowReaderBuilder<T> {
-    pub(crate) input: T,
+    pub input: T,
 
     pub(crate) metadata: Arc<ParquetMetaData>,
 
@@ -541,7 +541,7 @@ mod tests {
     use crate::basic::{ConvertedType, Encoding, Repetition, Type as PhysicalType};
     use crate::data_type::{
         BoolType, ByteArray, ByteArrayType, DataType, FixedLenByteArray,
-        FixedLenByteArrayType, Int32Type, Int64Type, Int96Type,
+        FixedLenByteArrayType, Int32Type, Int64Type,
     };
     use crate::errors::Result;
     use crate::file::properties::{EnabledStatistics, WriterProperties, WriterVersion};
