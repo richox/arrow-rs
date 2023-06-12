@@ -28,6 +28,7 @@ pub async fn get_dictionary_for_pruning<T: AsyncFileReader + Send + 'static>(
     let row_group_metadata = parquet_metadata.row_group(row_group_idx);
     let column_metadata = row_group_metadata.column(col_idx);
 
+    eprintln!("XXX get_dict_for_pruning: {}", column_metadata.column_descr_ptr().name());
     // check whether dictionary page exists
     if column_metadata
         .page_encoding_stats()
@@ -36,6 +37,7 @@ pub async fn get_dictionary_for_pruning<T: AsyncFileReader + Send + 'static>(
         .all(|stat| stat.page_type != PageType::DICTIONARY_PAGE)
     {
         // no dictionary page
+        eprintln!("XXX NO_DICTIONARY_PAGE");
         return Ok(None);
     }
 
@@ -49,6 +51,7 @@ pub async fn get_dictionary_for_pruning<T: AsyncFileReader + Send + 'static>(
         })
     {
         // at least one non-dictionary encoding is present
+        eprintln!("XXX NO_DICTIONARY_ENCODED_PAGE");
         return Ok(None);
     }
 
@@ -58,13 +61,14 @@ pub async fn get_dictionary_for_pruning<T: AsyncFileReader + Send + 'static>(
             .encodings()
             .iter()
             .any(|enc| {
-                !matches!(enc, Encoding::RLE | Encoding::BIT_PACKED)
+                !matches!(enc, Encoding::PLAIN_DICTIONARY | Encoding::RLE | Encoding::BIT_PACKED)
             })
         {
             // if remove returned true, PLAIN_DICTIONARY was present, which means at
             // least one page was dictionary encoded and 1.0 encodings are used
 
             // RLE and BIT_PACKED are only used for repetition or definition levels
+            eprintln!("XXX NON_DICT_PAGE_EXISTS");
             return Ok(None);
         }
     } else {
@@ -72,6 +76,7 @@ pub async fn get_dictionary_for_pruning<T: AsyncFileReader + Send + 'static>(
         // dictionary-encoded, or the 2.0 encoding, RLE_DICTIONARY, was used.
         // for 2.0, this cannot determine whether a page fell back without
         // page encoding stats
+        eprintln!("XXX PLAIN_DICTIONARY_NOT_EXISTS");
         return Ok(None);
     }
 
@@ -87,6 +92,7 @@ pub async fn get_dictionary_for_pruning<T: AsyncFileReader + Send + 'static>(
     )?);
     let page_metadata = page_reader.peek_next_page()?;
     if !page_metadata.map(|metadata| metadata.is_dict).unwrap_or(false) {
+        eprintln!("XXX FIRST_PAGE_NOT_DICT");
         return Ok(None);
     }
 
@@ -99,11 +105,14 @@ pub async fn get_dictionary_for_pruning<T: AsyncFileReader + Send + 'static>(
                         column_metadata.column_descr().type_length());
                     dict_decoder.set_data(buf, num_values as usize)?;
                     dict_decoder.get(&mut dict_values)?;
-                    Ok(Some(
+                    let dict: crate::errors::Result<Option<Arc<dyn Array>>> = Ok(Some(
                         Arc::new(<$array_type>::from_iter_values(dict_values))
-                    ))
+                    ));
+                    eprintln!("XXX Get primitive dict: {:?}", dict);
+                    dict
                 }
                 _ => {
+                    eprintln!("XXX Primitive FISRT_PAGE_NOT_DICT 2");
                     Ok(None)
                 }
             }
@@ -146,9 +155,14 @@ pub async fn get_dictionary_for_pruning<T: AsyncFileReader + Send + 'static>(
                         false,
                     );
                     decoder.read(&mut buffer, usize::MAX)?;
-                    return Ok(Some(buffer.into_array(None, DataType::Binary)));
+                    let dict = Ok(Some(buffer.into_array(None, DataType::Binary)));
+                    eprintln!("XXX Get ByteArray dict: {:?}", dict);
+                    return dict;
                 }
-                _ => return Ok(None),
+                _ => {
+                    eprintln!("XXX ByteArray FISRT_PAGE_NOT_DICT 2");
+                    return Ok(None);
+                },
             }
         },
         ColumnReader::FixedLenByteArrayColumnReader(_) => {
