@@ -17,6 +17,8 @@
 
 //! Arrow selection kernels
 
+#![feature(core_intrinsics)]
+
 pub mod concat;
 mod dictionary;
 pub mod filter;

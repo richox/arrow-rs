@@ -354,7 +354,17 @@ fn take_native<T: ArrowNativeType, I: ArrowPrimitiveType>(
         None => indices
             .values()
             .iter()
-            .map(|index| values[index.as_usize()])
+            .enumerate()
+            .map(|(i, index)| {
+                unsafe {
+                    // safety: prefetch next values
+                    if i + 8 < indices.len() {
+                        let next_index = indices.value_unchecked(i + 8);
+                        std::intrinsics::prefetch_read_data(&values.get_unchecked(next_index.as_usize()), 3);
+                    }
+                }
+                values[index.as_usize()]
+            })
             .collect(),
     }
 }
